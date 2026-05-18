@@ -216,8 +216,8 @@
     letter-spacing: .1em; text-transform: uppercase; padding: 13px 24px;
     border-radius: var(--radius); cursor: pointer; transition: all .18s; border: none;
   }
-  .btn-back { background: transparent; color: var(--ink-3); border: 1.5px solid var(--paper-3); }
-  .btn-back:hover { border-color: var(--ink-4); color: var(--ink-2); }
+  .btn-back { background: transparent; color: var(--teal); border: 1.5px solid var(--ink); }
+  .btn-back:hover { border-color: var(--ink-4); color: var(--ink); }
   .btn-next { background: var(--teal); color: #fff; }
   .btn-next:hover { background: var(--teal-mid); transform: translateY(-1px); }
   .btn-submit { background: var(--gold); color: var(--ink); }
@@ -1298,69 +1298,225 @@ function emailResults() {
   const total   = answers.reduce((s, v) => s + (v || 0), 0);
   const date    = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
  
-  let zone = total <= 62 ? "Task Thinker Organization" : total <= 93 ? "Emerging Project Thinker" : "Project Thinker Organization";
+  let zone = total <= 62 ? "Task Thinker Organization"
+           : total <= 93 ? "Emerging Project Thinker"
+           :               "Project Thinker Organization";
  
-  // ── Shift summary ─────────────────────────────────────────────
-  let shiftSummary = '';
+  // ── Shift summary lines ───────────────────────────────────────
+  let shiftLines = '';
   SHIFTS.forEach((s, i) => {
     const score  = getShiftScore(i);
     const status = getStatus(score, 25);
     const lbl    = status === 'task' ? 'TASK-DOMINANT' : status === 'emerging' ? 'EMERGING' : 'STRONG';
-    shiftSummary += `Shift ${i+1} %E2%80%94 ${encodeURIComponent(s.name)}: ${score}/25 [${lbl}]%0D%0A`;
+    shiftLines += `Shift ${i+1} — ${s.name}: ${score}/25 [${lbl}]\n`;
   });
  
   // ── Priority findings ─────────────────────────────────────────
-  // Sort shifts lowest to highest score
   const sorted = SHIFTS
     .map((s, i) => ({ name: s.name, score: getShiftScore(i), idx: i }))
     .sort((a, b) => a.score - b.score);
  
-  const weakest  = sorted.slice(0, 2);   // two lowest = gaps
-  const strongest = sorted[sorted.length - 1]; // highest = strength
+  const weakest   = sorted.slice(0, 2);
+  const strongest = sorted[sorted.length - 1];
  
-  let findingsSummary = '';
- 
+  let findingsLines = '';
   weakest.forEach(s => {
     const status = getStatus(s.score, 25);
     const label  = status === 'task' ? 'TASK-THINKING GAP' : 'EMERGING PRIORITY';
-    const icon   = status === 'task' ? '%E2%9A%A0' : '%E2%97%8E'; // ⚠ or ◎
-    findingsSummary +=
-      `${icon} ${label}: ${encodeURIComponent(s.name)} (${s.score}/25)%0D%0A` +
-      `${encodeURIComponent(getInsight(s.idx))}%0D%0A%0D%0A`;
+    const icon   = status === 'task' ? '⚠' : '◎';
+    findingsLines += `${icon} ${label}: ${s.name} (${s.score}/25)\n${getInsight(s.idx)}\n\n`;
   });
+  findingsLines += `✓ STRONGEST SHIFT: ${strongest.name} (${strongest.score}/25)\n${getStrength(strongest.idx)}\n`;
  
-  findingsSummary +=
-    `%E2%9C%93 STRONGEST SHIFT: ${encodeURIComponent(strongest.name)} (${strongest.score}/25)%0D%0A` +
-    `${encodeURIComponent(getStrength(strongest.idx))}%0D%0A`;
+  // ── Build plain-text email body ───────────────────────────────
+  const divider  = '═'.repeat(56);
+  const rule     = '─'.repeat(56);
  
-  // ── Compose subject & body ────────────────────────────────────
-  const subject = encodeURIComponent(
-    `Project Thinking™ Assessment — ${name || 'Results'} | ${company || 'Organization'} | ${total}/125 (${zone})`
-  );
+  const bodyText =
+`PROJECT THINKING™ SELF-ASSESSMENT RESULTS
+${divider}
  
-  const body =
-    `Project%20Thinking%E2%84%A2%20Self-Assessment%20Results%0D%0A` +
-    `${'%3D'.repeat(28)}%0D%0A%0D%0A` +
-    `Respondent%3A%20${encodeURIComponent(name)}%0D%0A` +
-    (title   ? `Title%3A%20${encodeURIComponent(title)}%0D%0A`   : '') +
-    (company ? `Company%3A%20${encodeURIComponent(company)}%0D%0A` : '') +
-    (email   ? `Email%3A%20${encodeURIComponent(email)}%0D%0A`   : '') +
-    `Date%3A%20${encodeURIComponent(date)}%0D%0A%0D%0A` +
-    `OVERALL%20SCORE%3A%20${total}%20%2F%20125%20%E2%80%94%20${encodeURIComponent(zone)}%0D%0A%0D%0A` +
-    `${'%E2%94%80'.repeat(14)}%0D%0A` +
-    `THE%20FIVE%20COGNITIVE%20SHIFTS%0D%0A` +
-    `${'%E2%94%80'.repeat(14)}%0D%0A` +
-    `${shiftSummary}%0D%0A` +
-    `${'%E2%94%80'.repeat(14)}%0D%0A` +
-    `PRIORITY%20FINDINGS%0D%0A` +
-    `${'%E2%94%80'.repeat(14)}%0D%0A` +
-    `${findingsSummary}%0D%0A` +
-    `${'%3D'.repeat(28)}%0D%0A` +
-    `Generated%20by%20Project%20Thinking%E2%84%A2%20Self-Assessment%0D%0A` +
-    `Dr.%20Minina%20Johnson%2C%20DBA%2C%20PMP%2C%20CSM%20%C2%B7%20Greater%20Ambitions%20LLC%0D%0A` +
-    `greaterambitionsllc.com`;
+Respondent: ${name}${title   ? '\nTitle:      ' + title   : ''}${company ? '\nCompany:    ' + company : ''}${email   ? '\nEmail:      ' + email   : ''}
+Date:       ${date}
  
-  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+OVERALL SCORE: ${total} / 125 — ${zone}
+ 
+${rule}
+THE FIVE COGNITIVE SHIFTS
+${rule}
+${shiftLines}
+${rule}
+PRIORITY FINDINGS
+${rule}
+${findingsLines}
+${divider}
+Generated by Project Thinking™ Self-Assessment
+Dr. Minina Johnson, DBA, PMP, CSM · Greater Ambitions LLC
+greaterambitionsllc.com`;
+ 
+  // ── Subject line ──────────────────────────────────────────────
+  const subject = `Project Thinking™ Assessment — ${name || 'Results'} | ${company || 'Organization'} | ${total}/125 (${zone})`;
+ 
+  // ── Show modal with copy + mailto fallback ────────────────────
+  // mailto: has a ~2,000 char browser limit and silently truncates.
+  // We show a modal so the user can copy the full report AND still
+  // open their email client with the subject pre-filled.
+  showEmailModal(subject, bodyText);
+}
+ 
+// ── EMAIL MODAL ───────────────────────────────────────────────────
+// Displays the full report in a copyable modal with an "Open Email
+// Client" button that pre-fills the subject line. The body is shown
+// in a textarea so the user can copy and paste the complete report.
+function showEmailModal(subject, bodyText) {
+  // Remove any existing modal
+  const existing = document.getElementById('email-modal-overlay');
+  if (existing) existing.remove();
+ 
+  const overlay = document.createElement('div');
+  overlay.id = 'email-modal-overlay';
+  overlay.style.cssText = `
+    position:fixed; inset:0; z-index:99999;
+    background:rgba(27,43,75,0.88);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px 16px;
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+  `;
+ 
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background:#F4F6FA; border-radius:14px;
+    max-width:660px; width:100%; max-height:90vh;
+    display:flex; flex-direction:column; overflow:hidden;
+    box-shadow:0 24px 64px rgba(27,43,75,0.4);
+  `;
+ 
+  // Header
+  const header = document.createElement('div');
+  header.style.cssText = `
+    background:#1B2B4B; padding:24px 32px 20px; flex-shrink:0;
+  `;
+  header.innerHTML = `
+    <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#B8922A;margin-bottom:8px;">
+      Project Thinking™ · Assessment Results
+    </div>
+    <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#F4F6FA;line-height:1.3;margin-bottom:4px;">
+      Your Full Report Is Ready to Send
+    </div>
+    <div style="font-size:13px;color:#A0B4CC;line-height:1.5;">
+      Copy the report below and paste it into your email — or click "Open Email Client" to pre-fill the subject line.
+    </div>
+  `;
+ 
+  // Body — scrollable textarea
+  const body = document.createElement('div');
+  body.style.cssText = `flex:1; overflow-y:auto; padding:24px 32px;`;
+ 
+  const textarea = document.createElement('textarea');
+  textarea.value = bodyText;
+  textarea.readOnly = true;
+  textarea.style.cssText = `
+    width:100%; height:320px; resize:none;
+    font-family:'Courier New',monospace; font-size:12px; line-height:1.6;
+    color:#1B2B4B; background:#EBEEf5;
+    border:1.5px solid #D8DEEA; border-radius:8px;
+    padding:16px; outline:none;
+  `;
+  // Select all on click for easy copy
+  textarea.addEventListener('click', () => textarea.select());
+  body.appendChild(textarea);
+ 
+  // Confirmed copy notice
+  const copyNotice = document.createElement('div');
+  copyNotice.style.cssText = `
+    display:none; margin-top:10px; padding:10px 14px;
+    background:#E4F2E8; border:1.5px solid #1A5C30;
+    border-radius:8px; font-size:13px; color:#1A5C30; font-weight:500;
+  `;
+  copyNotice.textContent = '✓ Report copied to clipboard — paste it into your email body.';
+  body.appendChild(copyNotice);
+ 
+  // Footer buttons
+  const footer = document.createElement('div');
+  footer.style.cssText = `
+    padding:16px 32px 24px; background:#F4F6FA;
+    border-top:1px solid #D8DEEA; flex-shrink:0;
+    display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+  `;
+ 
+  // Copy button
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = '📋  Copy Full Report';
+  copyBtn.style.cssText = `
+    flex:1; padding:13px 20px; background:#4A6FA5; color:#fff;
+    border:none; border-radius:6px; font-family:'Syne',sans-serif;
+    font-size:12px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; cursor:pointer; transition:background .15s;
+  `;
+  copyBtn.onmouseenter = () => { copyBtn.style.background = '#3A5F95'; };
+  copyBtn.onmouseleave = () => { copyBtn.style.background = '#4A6FA5'; };
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(bodyText).then(() => {
+      copyNotice.style.display = 'block';
+      copyBtn.textContent = '✓  Copied!';
+      setTimeout(() => {
+        copyNotice.style.display = 'none';
+        copyBtn.textContent = '📋  Copy Full Report';
+      }, 3000);
+    }).catch(() => {
+      textarea.select();
+      document.execCommand('copy');
+      copyNotice.style.display = 'block';
+      setTimeout(() => { copyNotice.style.display = 'none'; }, 3000);
+    });
+  };
+ 
+  // Open email client button (subject only — body too long for mailto)
+  const mailBtn = document.createElement('button');
+  mailBtn.textContent = '✉  Open Email Client';
+  mailBtn.style.cssText = `
+    flex:1; padding:13px 20px; background:#B8922A; color:#1B2B4B;
+    border:none; border-radius:6px; font-family:'Syne',sans-serif;
+    font-size:12px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; cursor:pointer; transition:background .15s;
+  `;
+  mailBtn.onmouseenter = () => { mailBtn.style.background = '#D4A820'; };
+  mailBtn.onmouseleave = () => { mailBtn.style.background = '#B8922A'; };
+  mailBtn.onclick = () => {
+    // Only pass subject — user pastes the copied body themselves
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}`;
+  };
+ 
+  // Close button
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = `
+    padding:13px 20px; background:transparent; color:#5A7AA8;
+    border:1.5px solid #D8DEEA; border-radius:6px;
+    font-family:'Syne',sans-serif; font-size:12px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase; cursor:pointer;
+    transition:all .15s;
+  `;
+  closeBtn.onmouseenter = () => { closeBtn.style.borderColor = '#A0B4CC'; closeBtn.style.color = '#1B2B4B'; };
+  closeBtn.onmouseleave = () => { closeBtn.style.borderColor = '#D8DEEA'; closeBtn.style.color = '#5A7AA8'; };
+  closeBtn.onclick = () => overlay.remove();
+ 
+  footer.appendChild(copyBtn);
+  footer.appendChild(mailBtn);
+  footer.appendChild(closeBtn);
+ 
+  modal.appendChild(header);
+  modal.appendChild(body);
+  modal.appendChild(footer);
+  overlay.appendChild(modal);
+ 
+  // Close on backdrop click
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+ 
+  document.body.appendChild(overlay);
+ 
+  // Auto-select textarea so user sees it's ready to copy
+  setTimeout(() => textarea.select(), 100);
 }
  
 function retakeAssessment() {
